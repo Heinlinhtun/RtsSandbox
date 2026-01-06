@@ -93,6 +93,7 @@ public sealed class Game
                     _loadedObstacleMesh?.Dispose(_gl);
                     _loadedObstacleMesh = mesh;
                     _props.SetPropMesh(mesh);
+                    _props.PlaceSingle(new Vector2(spawnPos.X, spawnPos.Y), _terrain);
                 }
 
                 Console.WriteLine($"Loaded GLB: {path}");

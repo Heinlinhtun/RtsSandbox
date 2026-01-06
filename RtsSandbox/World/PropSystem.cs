@@ -53,7 +53,7 @@ public sealed class PropSystem
     public void Randomize(int count, Terrain terrain, int? seed = null)
     {
         var rng = new Random(seed ?? Environment.TickCount);
-        _currentCount = count;
+        _currentCount = Math.Max(1, count);
 
         float maxX = (Terrain.W - 1) * terrain.CellSize;
         float maxZ = (Terrain.H - 1) * terrain.CellSize;
@@ -82,6 +82,25 @@ public sealed class PropSystem
         }
 
         // force VAO/VBO reupload on next draw
+        _ready = false;
+    }
+
+    public void PlaceSingle(Vector2 xz, Terrain terrain)
+    {
+        float y = terrain.SampleHeight(xz.X, xz.Y);
+
+        _models = new[]
+        {
+            Matrix4x4.CreateScale(1.0f) *
+            Matrix4x4.CreateTranslation(new Vector3(xz.X, y, xz.Y))
+        };
+
+        _obstacles = new List<Obstacle>(1)
+        {
+            new Obstacle(new Vector3(xz.X, y, xz.Y), 1.0f, _models[0])
+        };
+
+        _instanceCount = 1;
         _ready = false;
     }
 

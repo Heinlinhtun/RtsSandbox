@@ -39,13 +39,18 @@ public sealed class UnitSystem
     }
 
 
+    private Terrain? _terrain;
+
     public void Init(Terrain terrain)
     {
+        _terrain = terrain;
         SpawnAt(new Vector2(120, 120));
     }
 
     public void SpawnAt(Vector2 center)
     {
+        if (_terrain == null) throw new InvalidOperationException("Terrain not set before spawning.");
+
         float spacing = 2.2f;
         int cols = (int)MathF.Ceiling(MathF.Sqrt(UnitCount));
         int k = 0;
@@ -58,7 +63,8 @@ public sealed class UnitSystem
             float ox = (c - (cols - 1) * 0.5f) * spacing;
             float oz = r * spacing;
 
-            _pos[i] = new Vector3(center.X + ox, 0, center.Y + oz);
+            float y = _terrain.SampleHeight(center.X + ox, center.Y + oz);
+            _pos[i] = new Vector3(center.X + ox, y, center.Y + oz);
             _target[i] = _pos[i];
             _hasTarget[i] = false;
             _selected[i] = false;
