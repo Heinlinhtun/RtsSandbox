@@ -33,6 +33,7 @@ public sealed class Game
     private ToolsMenu? _tools;
     private RtsSandbox.Assets.AssetManager? _assets;
     private RtsSandbox.Graphics.GpuMesh? _loadedUnitMesh;
+    private RtsSandbox.Graphics.GpuMesh? _loadedObstacleMesh;
 
 
 
@@ -74,7 +75,7 @@ public sealed class Game
             Console.WriteLine($"LoadMap: {type} path={path} scale={heightScale}");
         };
 
-        _tools!.OnLoadModel = (path, spawnAsUnit) =>
+        _tools!.OnLoadModel = (path, spawnAsUnit, spawnPos) =>
         {
             try
             {
@@ -85,11 +86,13 @@ public sealed class Game
                     _loadedUnitMesh?.Dispose(_gl); // dispose previous
                     _loadedUnitMesh = mesh;
                     _units.SetUnitMesh(mesh);
+                    _units.SpawnAt(new Vector2(spawnPos.X, spawnPos.Y));
                 }
                 else
                 {
-                    // later: props mesh set
-                    // _props.SetPropMesh(mesh);
+                    _loadedObstacleMesh?.Dispose(_gl);
+                    _loadedObstacleMesh = mesh;
+                    _props.SetPropMesh(mesh);
                 }
 
                 Console.WriteLine($"Loaded GLB: {path}");
@@ -97,6 +100,23 @@ public sealed class Game
             catch (Exception ex)
             {
                 Console.WriteLine($"LoadModel failed: {ex.Message}");
+            }
+        };
+
+        _tools!.OnLoadObstacles = (path, count) =>
+        {
+            try
+            {
+                var mesh = _assets!.LoadGlbStaticMesh(path);
+                _loadedObstacleMesh?.Dispose(_gl);
+                _loadedObstacleMesh = mesh;
+                _props.SetPropMesh(mesh);
+                _props.Randomize(count, _terrain);
+                Console.WriteLine($"Loaded obstacles: {count} from {path}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"LoadObstacles failed: {ex.Message}");
             }
         };
 
@@ -129,21 +149,22 @@ public sealed class Game
         // Mouse down
         _mouse.MouseDown += (_, btn) =>
         {
-            if (btn == MouseButton.Left)
-            {
-                _dragging = true;
-                _dragStart = _mouse.Position;
-                _dragEnd = _dragStart;
-            }
-            else if (btn == MouseButton.Right)
-            {
-                if (Picking.TryGetTerrainHit(_window, _mouse!, _camera, _terrain, out var hit))
+                if (btn == MouseButton.Left)
                 {
-                    if (_units.SelectedCount > 0)
+                    _dragging = true;
+                    _dragStart = _mouse.Position;
+                    _dragEnd = _dragStart;
+                }
+                else if (btn == MouseButton.Right)
+                {
+                    if (Picking.TryGetTerrainHit(_window, _mouse!, _camera, _terrain, out var hit))
                     {
-                        _units.IssueMoveFormation(hit);
-                        _markers.Spawn(hit, _time);
-                    }
+                        _tools?.SetPickedPosition(new Vector2(hit.X, hit.Z));
+                        if (_units.SelectedCount > 0)
+                        {
+                            _units.IssueMoveFormation(hit);
+                            _markers.Spawn(hit, _time);
+                        }
                 }
             }
         };
@@ -169,6 +190,7 @@ public sealed class Game
                 // Click select
                 if (Picking.TryGetTerrainHit(_window, _mouse!, _camera, _terrain, out var hit))
                 {
+                    _tools?.SetPickedPosition(new Vector2(hit.X, hit.Z));
                     int picked = _units.PickNearestUnitXZ(hit);
                     if (!shift && !ctrl) _units.SelectSingle(picked);
                     else _units.ToggleSelect(picked);
@@ -192,7 +214,7 @@ public sealed class Game
         _time += dt;
 
         _camera.Update(_kb, dt); // WASD + Space/Shift + Alt-pan
-        _units.Update(_terrain, dt);
+        _units.Update(_terrain, _props, dt);
         _markers.Update(_time);
 
         _imgui?.Update((float)dt);

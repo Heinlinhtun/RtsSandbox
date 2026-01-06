@@ -15,6 +15,8 @@ public sealed class UnitSystem
     private const int UnitCount = 5;
     private const float UnitSpeed = 12f;
     private const float SelectRadius = 2.0f;
+    private const float AvoidRadius = 2.5f;
+    private const float AvoidStrength = 6.5f;
 
     private readonly Vector3[] _pos = new Vector3[UnitCount];
     private readonly Vector3[] _target = new Vector3[UnitCount];
@@ -39,18 +41,28 @@ public sealed class UnitSystem
 
     public void Init(Terrain terrain)
     {
-        // Spawn in terrain bounds
-        _pos[0] = new Vector3(110, 0, 110);
-        _pos[1] = new Vector3(120, 0, 110);
-        _pos[2] = new Vector3(130, 0, 110);
-        _pos[3] = new Vector3(110, 0, 125);
-        _pos[4] = new Vector3(130, 0, 125);
+        SpawnAt(new Vector2(120, 120));
+    }
+
+    public void SpawnAt(Vector2 center)
+    {
+        float spacing = 2.2f;
+        int cols = (int)MathF.Ceiling(MathF.Sqrt(UnitCount));
+        int k = 0;
 
         for (int i = 0; i < UnitCount; i++)
         {
+            int r = k / cols;
+            int c = k % cols;
+
+            float ox = (c - (cols - 1) * 0.5f) * spacing;
+            float oz = r * spacing;
+
+            _pos[i] = new Vector3(center.X + ox, 0, center.Y + oz);
             _target[i] = _pos[i];
             _hasTarget[i] = false;
             _selected[i] = false;
+            k++;
         }
 
         _selectedCount = 0;
@@ -128,7 +140,7 @@ public sealed class UnitSystem
         }
     }
 
-    public void Update(Terrain terrain, double dt)
+    public void Update(Terrain terrain, PropSystem props, double dt)
     {
         float step = UnitSpeed * (float)dt;
 
@@ -150,6 +162,29 @@ public sealed class UnitSystem
             }
 
             var dir = to / dist;
+
+            // simple avoidance against props
+            Vector3 avoid = Vector3.Zero;
+            foreach (var obs in props.Obstacles)
+            {
+                var op = new Vector2(obs.Position.X, obs.Position.Z);
+                var up = new Vector2(p.X, p.Z);
+                var delta = up - op;
+                float d = delta.Length();
+                float desired = obs.Radius + AvoidRadius;
+                if (d < desired && d > 1e-3f)
+                {
+                    float push = (desired - d) / desired;
+                    avoid += new Vector3(delta.X, 0, delta.Y) * push;
+                }
+            }
+
+            if (avoid.LengthSquared() > 1e-5f)
+            {
+                avoid = Vector3.Normalize(avoid) * AvoidStrength;
+                dir = Vector3.Normalize(dir + avoid * 0.1f);
+            }
+
             var move = dir * MathF.Min(step, dist);
             _pos[i] = p + move;
         }

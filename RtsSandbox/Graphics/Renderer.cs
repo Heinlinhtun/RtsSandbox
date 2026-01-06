@@ -108,8 +108,7 @@ public sealed class Renderer
 
     public void DrawProps(IWindow window, CameraController cam, Terrain terrain, PropSystem props)
     {
-        props.EnsureInstancedMesh(_gl);
-        props.DrawInstanced(_gl, _unlitInstanced, cam);
+        props.Draw(_gl, _unlitInstanced, _unlit, cam);
     }
 
     public void DrawMarkers(IWindow window, CameraController cam, Terrain terrain, NavMarkerSystem markers, double time)

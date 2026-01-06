@@ -1,18 +1,32 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Silk.NET.OpenGL;
 using RtsSandbox.Graphics;
-using RtsSandbox.Input;
 using Shader = RtsSandbox.Graphics.Shader;
 
 namespace RtsSandbox.World;
 
 public sealed class PropSystem
 {
-    // You can push this to 5000+ comfortably after instancing
-    private const int PropCount = 2000;
+    public readonly struct Obstacle
+    {
+        public Obstacle(Vector3 position, float radius, Matrix4x4 model)
+        {
+            Position = position;
+            Radius = radius;
+            Model = model;
+        }
+
+        public Vector3 Position { get; }
+        public float Radius { get; }
+        public Matrix4x4 Model { get; }
+    }
+
+    private const int DefaultPropCount = 500;
 
     private Matrix4x4[] _models = Array.Empty<Matrix4x4>();
+    private List<Obstacle> _obstacles = new();
     private int _instanceCount;
 
     // Base mesh (cube) + instance buffer
@@ -21,18 +35,34 @@ public sealed class PropSystem
     private uint _vboInstance;
 
     private bool _ready;
+    private GpuMesh? _propMesh;
+    private int _currentCount = DefaultPropCount;
+
+    public IReadOnlyList<Obstacle> Obstacles => _obstacles;
 
     public void Init(Terrain terrain, int? seed = 12345)
     {
+        Randomize(DefaultPropCount, terrain, seed);
+    }
+
+    public void SetPropMesh(GpuMesh mesh)
+    {
+        _propMesh = mesh;
+    }
+
+    public void Randomize(int count, Terrain terrain, int? seed = null)
+    {
         var rng = new Random(seed ?? Environment.TickCount);
+        _currentCount = count;
 
         float maxX = (Terrain.W - 1) * terrain.CellSize;
         float maxZ = (Terrain.H - 1) * terrain.CellSize;
 
-        _models = new Matrix4x4[PropCount];
-        _instanceCount = PropCount;
+        _models = new Matrix4x4[_currentCount];
+        _obstacles = new List<Obstacle>(_currentCount);
+        _instanceCount = _currentCount;
 
-        for (int i = 0; i < PropCount; i++)
+        for (int i = 0; i < _currentCount; i++)
         {
             float x = (float)rng.NextDouble() * maxX;
             float z = (float)rng.NextDouble() * maxZ;
@@ -41,15 +71,18 @@ public sealed class PropSystem
             float s = 0.8f + 1.8f * (float)rng.NextDouble();
             float yaw = (float)rng.NextDouble() * MathF.PI * 2f;
 
-            // Tree-ish scaling
             var scale = Matrix4x4.CreateScale(s * 0.6f, s * 1.8f, s * 0.6f);
             var rot = Matrix4x4.CreateRotationY(yaw);
-
-            // Lift half height so it sits on ground
             var trans = Matrix4x4.CreateTranslation(new Vector3(x, y + (s * 0.9f), z));
 
-            _models[i] = scale * rot * trans;
+            var model = scale * rot * trans;
+            _models[i] = model;
+            float radius = s * 0.75f;
+            _obstacles.Add(new Obstacle(new Vector3(x, y, z), radius, model));
         }
+
+        // force VAO/VBO reupload on next draw
+        _ready = false;
     }
 
     /// <summary>
@@ -57,10 +90,19 @@ public sealed class PropSystem
     /// </summary>
     public unsafe void EnsureInstancedMesh(GL gl)
     {
-        if (_ready) return;
+        if (_ready)
+        {
+            // update instance buffer if already built
+            gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vboInstance);
+            fixed (Matrix4x4* pm = _models)
+            {
+                gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_models.Length * sizeof(Matrix4x4)), pm, BufferUsageARB.StaticDraw);
+            }
+            return;
+        }
+
         _ready = true;
 
-        // --- Base cube vertices (pos only) ---
         float[] cubePos =
         {
             // Front (+Z)
@@ -91,7 +133,6 @@ public sealed class PropSystem
         _vao = gl.GenVertexArray();
         gl.BindVertexArray(_vao);
 
-        // VBO for cube positions
         _vboPos = gl.GenBuffer();
         gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vboPos);
         fixed (float* p = cubePos)
@@ -99,11 +140,9 @@ public sealed class PropSystem
             gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(cubePos.Length * sizeof(float)), p, BufferUsageARB.StaticDraw);
         }
 
-        // Attribute 0 = vec3 position
         gl.EnableVertexAttribArray(0);
         gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), (void*)0);
 
-        // VBO for instance matrices
         _vboInstance = gl.GenBuffer();
         gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vboInstance);
 
@@ -112,11 +151,9 @@ public sealed class PropSystem
             gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_models.Length * sizeof(Matrix4x4)), pm, BufferUsageARB.StaticDraw);
         }
 
-        // ✅ THIS IS WHERE YOUR LOOP GOES (VAO setup time)
         int vec4Size = 4 * sizeof(float);
         int mat4Size = 16 * sizeof(float);
 
-        // Attribute locations 1..4 represent mat4 columns (vec4 each)
         for (uint i = 0; i < 4; i++)
         {
             gl.EnableVertexAttribArray(1 + i);
@@ -127,23 +164,31 @@ public sealed class PropSystem
         gl.BindVertexArray(0);
     }
 
-    /// <summary>
-    /// Draw call happens every frame.
-    /// Uses Instanced shader: uVP + aModel
-    /// </summary>
-    public void DrawInstanced(GL gl, Shader instancedUnlit, CameraController cam)
+    public void Draw(GL gl, Shader instancedUnlit, Shader unlit, CameraController cam)
     {
-        if (!_ready) return;
+        if (_propMesh != null)
+        {
+            unlit.Use();
+            unlit.SetVec4("uColor", new Vector4(0.10f, 0.55f, 0.18f, 1.0f));
+
+            foreach (var obs in _obstacles)
+            {
+                var mvp = obs.Model * cam.View * cam.Proj;
+                unlit.SetMat4("uMVP", mvp);
+                _propMesh.Draw(gl);
+            }
+
+            return;
+        }
+
+        EnsureInstancedMesh(gl);
 
         instancedUnlit.Use();
         instancedUnlit.SetMat4("uVP", cam.View * cam.Proj);
         instancedUnlit.SetVec4("uColor", new Vector4(0.10f, 0.55f, 0.18f, 1.0f));
 
         gl.BindVertexArray(_vao);
-
-        // ✅ THIS IS WHERE YOUR DRAW GOES (render time)
         gl.DrawArraysInstanced(PrimitiveType.Triangles, 0, 36, (uint)_instanceCount);
-
         gl.BindVertexArray(0);
     }
 

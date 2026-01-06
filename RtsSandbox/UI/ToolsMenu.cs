@@ -21,10 +21,24 @@ public sealed class ToolsMenu
 
     private string _modelPath = "Assets/Models/unit.glb";
     private bool _spawnAsUnit = true;
+    private System.Numerics.Vector2 _spawnPos = new(120, 120);
+    private System.Numerics.Vector2 _lastPickedPos = new(120, 120);
+    private bool _hasPicked;
+
+    private string _obstaclePath = "Assets/Models/unit.glb";
+    private int _obstacleCount = 50;
 
     // Callbacks (wire these from Program/Game)
     public Action<MapType, string, float>? OnLoadMap;
-    public Action<string, bool>? OnLoadModel; // (path, spawnAsUnit)
+    public Action<string, bool, System.Numerics.Vector2>? OnLoadModel; // (path, spawnAsUnit, spawnPos)
+    public Action<string, int>? OnLoadObstacles; // (path, count)
+
+    public void SetPickedPosition(System.Numerics.Vector2 xz)
+    {
+        _lastPickedPos = xz;
+        _spawnPos = xz;
+        _hasPicked = true;
+    }
 
     public void Draw()
     {
@@ -40,7 +54,7 @@ public sealed class ToolsMenu
 
                 if (ImGui.MenuItem("Load Model..."))
                 {
-                    OnLoadModel?.Invoke(_modelPath, _spawnAsUnit);
+                    OnLoadModel?.Invoke(_modelPath, _spawnAsUnit, _spawnPos);
                 }
 
                 ImGui.Separator();
@@ -81,8 +95,20 @@ public sealed class ToolsMenu
             ImGui.InputText("Model Path", ref _modelPath, 512);
             ImGui.Checkbox("Spawn As Unit (else Prop)", ref _spawnAsUnit);
 
+            ImGui.InputFloat2("Spawn XZ", ref _spawnPos);
+            if (_hasPicked && ImGui.Button("Use Last Mouse Hit"))
+                _spawnPos = _lastPickedPos;
+
             if (ImGui.Button("Load Model"))
-                OnLoadModel?.Invoke(_modelPath, _spawnAsUnit);
+                OnLoadModel?.Invoke(_modelPath, _spawnAsUnit, _spawnPos);
+
+            ImGui.Separator();
+
+            ImGui.Text("Obstacles");
+            ImGui.InputText("Obstacle GLB", ref _obstaclePath, 512);
+            ImGui.InputInt("Obstacle Count", ref _obstacleCount);
+            if (ImGui.Button("Randomize Obstacles"))
+                OnLoadObstacles?.Invoke(_obstaclePath, Math.Max(0, _obstacleCount));
         }
         ImGui.End();
     }
