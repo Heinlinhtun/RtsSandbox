@@ -252,7 +252,7 @@ public sealed class UnitSystem
                     Matrix4x4.CreateScale(1.0f) *
                     Matrix4x4.CreateTranslation(new Vector3(_pos[i].X, y + baseOffset, _pos[i].Z));
 
-                var mvp = cam.Proj * cam.View * model;
+                var mvp = cam.View * cam.Proj * model;
 
                 unlit.Use();
                 unlit.SetMat4("uMVP", mvp);
@@ -282,7 +282,7 @@ public sealed class UnitSystem
             var worldPos = new Vector3(_pos[i].X, y + 0.5f, _pos[i].Z);
 
             var model = Matrix4x4.CreateTranslation(worldPos);
-            var mvp = cam.Proj * cam.View * model;
+            var mvp = cam.View * cam.Proj * model;
 
             unlit.Use();
             unlit.SetMat4("uMVP", mvp);

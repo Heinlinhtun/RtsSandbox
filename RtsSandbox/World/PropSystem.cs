@@ -208,9 +208,10 @@ public sealed class PropSystem
             unlit.Use();
             unlit.SetVec4("uColor", new Vector4(0.10f, 0.55f, 0.18f, 1.0f));
 
+            var vp = cam.View * cam.Proj;
             foreach (var obs in _obstacles)
             {
-                var mvp = cam.Proj * cam.View * obs.Model;
+                var mvp = vp * obs.Model;
                 unlit.SetMat4("uMVP", mvp);
                 _propMesh.Draw(gl);
             }
