@@ -63,6 +63,17 @@ public sealed class AssetManager
         string p1 = Path.Combine(baseDir, path);
         if (File.Exists(p1)) return p1;
 
+        // When running from bin/, assets live up the tree (e.g. ../../..)
+        string? parent = baseDir;
+        for (int i = 0; i < 5; i++)
+        {
+            parent = Directory.GetParent(parent!)?.FullName;
+            if (parent == null) break;
+
+            string candidate = Path.Combine(parent, path);
+            if (File.Exists(candidate)) return candidate;
+        }
+
         // Fallback: relative to working directory
         string p2 = Path.GetFullPath(path);
         return p2;
