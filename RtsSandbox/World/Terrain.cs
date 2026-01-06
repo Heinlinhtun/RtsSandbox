@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Numerics;
 using Silk.NET.OpenGL;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace RtsSandbox.World;
 
@@ -8,6 +10,7 @@ public sealed class Terrain
 {
     public const int W = 256;
     public const int H = 256;
+    private GL? _gl;
 
     public float CellSize { get; private set; } = 1.0f;
     public float HeightScale { get; private set; } = 10.0f;
@@ -20,6 +23,7 @@ public sealed class Terrain
 
     public void Init(GL gl)
     {
+        _gl = gl;
         BuildHeightmapProcedural();
         CreateMesh(gl);
     }
@@ -29,6 +33,57 @@ public sealed class Terrain
         if (Vbo != 0) gl.DeleteBuffer(Vbo);
         if (Vao != 0) gl.DeleteVertexArray(Vao);
     }
+    public void LoadHeightmap(string path, float heightScale)
+    {
+        if (_gl == null) throw new InvalidOperationException("Terrain.Init(gl) must be called first");
+
+        HeightScale = heightScale;
+
+        string fullPath = ResolvePath(path);
+        if (!File.Exists(fullPath))
+            throw new FileNotFoundException(fullPath);
+
+        using Image<Rgba32> img = Image.Load<Rgba32>(fullPath);
+
+        for (int z = 0; z < H; z++)
+        {
+            int srcY = (int)((z / (float)(H - 1)) * (img.Height - 1));
+            for (int x = 0; x < W; x++)
+            {
+                int srcX = (int)((x / (float)(W - 1)) * (img.Width - 1));
+
+                var c = img[srcX, srcY];
+                float g = (0.299f * c.R + 0.587f * c.G + 0.114f * c.B) / 255f;
+
+                _height[z * W + x] = g * HeightScale;
+            }
+        }
+
+        RecreateMesh(_gl);
+        Console.WriteLine($"Terrain heightmap loaded: {path}");
+    }
+
+    private void RecreateMesh(GL gl)
+    {
+        // delete old buffers (if any)
+        if (Vbo != 0) gl.DeleteBuffer(Vbo);
+        if (Vao != 0) gl.DeleteVertexArray(Vao);
+        Vbo = Vao = 0;
+
+        CreateMesh(gl);
+    }
+
+    private static string ResolvePath(string path)
+    {
+        if (Path.IsPathRooted(path)) return path;
+
+        string baseDir = AppContext.BaseDirectory;
+        string p1 = Path.Combine(baseDir, path);
+        if (File.Exists(p1)) return p1;
+
+        return Path.GetFullPath(path);
+    }
+
 
     public float SampleHeight(float wx, float wz)
     {

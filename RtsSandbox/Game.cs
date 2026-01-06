@@ -69,11 +69,14 @@ public sealed class Game
         // callbacks
         _tools.OnLoadMap = (type, path, heightScale) =>
         {
-            // TODO: type switch
-            // ✅ အခုက Heightmap PNG ကိုပဲ အရင်လုပ် (RTS အတွက် best)
-            // terrain.LoadHeightmap(path, heightScale);
             Console.WriteLine($"LoadMap: {type} path={path} scale={heightScale}");
+            _terrain.LoadHeightmap(path, heightScale);
+
+            // optional: props/units ကို terrain အသစ်နဲ့ re-snap လုပ်ချင်ရင်
+            _props.Randomize(500, _terrain);
         };
+
+
 
         _tools!.OnLoadModel = (path, spawnAsUnit, spawnPos) =>
         {

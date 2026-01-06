@@ -4,7 +4,7 @@
 		<OutputType>Exe</OutputType>
 		<TargetFramework>net8.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
-		<Nullable>enable</Nullable>
+		<Nullable>enable</Nullable>		
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	</PropertyGroup>
 
@@ -15,10 +15,16 @@
 		<PackageReference Include="Silk.NET.OpenGL" Version="2.22.0" />
 		<PackageReference Include="Silk.NET.OpenGL.Extensions.ImGui" Version="2.22.0" />
 		<PackageReference Include="Silk.NET.Windowing" Version="2.22.0" />
+		<PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Include="Assets\AssetManager.cs" />
+		<None Include="Assets\AssetManager.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Assets\Maps\" />
+	  <Folder Include="Assets\NewFolder\" />
 	</ItemGroup>
 
 </Project>
