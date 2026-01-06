@@ -53,7 +53,7 @@ public sealed class PropSystem
     public void Randomize(int count, Terrain terrain, int? seed = null)
     {
         var rng = new Random(seed ?? Environment.TickCount);
-        _currentCount = Math.Max(1, count);
+        _currentCount = Math.Max(0, count);
 
         float maxX = (Terrain.W - 1) * terrain.CellSize;
         float maxZ = (Terrain.H - 1) * terrain.CellSize;
@@ -75,9 +75,10 @@ public sealed class PropSystem
             var rot = Matrix4x4.CreateRotationY(yaw);
             var trans = Matrix4x4.CreateTranslation(new Vector3(x, y + (s * 0.9f), z));
 
-            var model = scale * rot * trans;
+            float baseOffset = _propMesh?.BaseOffsetY ?? 0f;
+            var model = scale * rot * Matrix4x4.CreateTranslation(new Vector3(x, y + (s * 0.9f) + baseOffset, z));
             _models[i] = model;
-            float radius = s * 0.75f;
+            float radius = _propMesh?.BoundingRadius ?? (s * 0.75f);
             _obstacles.Add(new Obstacle(new Vector3(x, y, z), radius, model));
         }
 
@@ -89,15 +90,17 @@ public sealed class PropSystem
     {
         float y = terrain.SampleHeight(xz.X, xz.Y);
 
+        float baseOffset = _propMesh?.BaseOffsetY ?? 0f;
+        float radius = _propMesh?.BoundingRadius ?? 1.0f;
+
         _models = new[]
         {
-            Matrix4x4.CreateScale(1.0f) *
-            Matrix4x4.CreateTranslation(new Vector3(xz.X, y, xz.Y))
+            Matrix4x4.CreateTranslation(new Vector3(xz.X, y + baseOffset, xz.Y))
         };
 
         _obstacles = new List<Obstacle>(1)
         {
-            new Obstacle(new Vector3(xz.X, y, xz.Y), 1.0f, _models[0])
+            new Obstacle(new Vector3(xz.X, y, xz.Y), radius, _models[0])
         };
 
         _instanceCount = 1;

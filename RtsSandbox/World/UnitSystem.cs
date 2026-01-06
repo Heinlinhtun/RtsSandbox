@@ -247,9 +247,10 @@ public sealed class UnitSystem
                 float y = terrain.SampleHeight(_pos[i].X, _pos[i].Z);
 
                 // NOTE: GLB units are often bigger/smaller; adjust scale if needed
+                float baseOffset = _unitMesh?.BaseOffsetY ?? 0f;
                 var model =
                     Matrix4x4.CreateScale(1.0f) *
-                    Matrix4x4.CreateTranslation(new Vector3(_pos[i].X, y, _pos[i].Z));
+                    Matrix4x4.CreateTranslation(new Vector3(_pos[i].X, y + baseOffset, _pos[i].Z));
 
                 var mvp = model * cam.View * cam.Proj;
 
