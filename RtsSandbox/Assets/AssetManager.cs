@@ -1,8 +1,9 @@
 ﻿using System;
 using System.IO;
+using System.Numerics;
+using System.Collections.Generic;
 using SharpGLTF.Schema2;
 using Silk.NET.OpenGL;
-using System.Numerics;
 
 using RtsSandbox.Graphics;
 
@@ -22,15 +23,13 @@ public sealed class AssetManager
 
         var model = ModelRoot.Load(fullPath);
 
-        // Take first mesh primitive (static)
         var mesh = model.LogicalMeshes.Count > 0 ? model.LogicalMeshes[0] : throw new Exception("GLB has no meshes.");
         var prim = mesh.Primitives.Count > 0 ? mesh.Primitives[0] : throw new Exception("Mesh has no primitives.");
 
-        // Positions
         var posAcc = prim.GetVertexAccessor("POSITION");
         if (posAcc == null) throw new Exception("Primitive has no POSITION.");
 
-        var posList = posAcc.AsVector3Array(); // IEnumerable<System.Numerics.Vector3>
+        var posList = posAcc.AsVector3Array();
         var positions = new float[posAcc.Count * 3];
         int k = 0;
         foreach (var p in posList)
@@ -40,19 +39,39 @@ public sealed class AssetManager
             positions[k++] = p.Z;
         }
 
-        // Indices (ensure triangles)
+        Console.WriteLine($"GLTF prim mode = {prim.DrawPrimitiveType}");
+
         var idxAcc = prim.IndexAccessor;
         if (idxAcc == null) throw new Exception("Primitive has no indices.");
 
-        var indices = idxAcc.AsIndicesArray(); // IEnumerable<int>
-        // To uint[]
-        var idxTmp = new System.Collections.Generic.List<uint>(idxAcc.Count);
-        foreach (var i in indices) idxTmp.Add((uint)i);
+        Console.WriteLine($"pos={posAcc.Count}, idx={idxAcc.Count}");
+
+        var idx = idxAcc.AsIndicesArray(); // IReadOnlyList<int>
+        int max = 0;
+        for (int i = 0; i < idx.Count; i++)
+            if (idx[i] > max) max = (int)idx[i];
 
         var gpu = new GpuMesh();
-        gpu.Create(_gl, positions, idxTmp.ToArray());
+
+        if (max <= ushort.MaxValue)
+        {
+            var inds = new ushort[idx.Count];
+            for (int i = 0; i < idx.Count; i++) inds[i] = (ushort)idx[i];
+
+            gpu.Create(_gl, positions, inds);
+            // gpu.IndexType is set inside Create()
+        }
+        else
+        {
+            var inds = new uint[idx.Count];
+            for (int i = 0; i < idx.Count; i++) inds[i] = (uint)idx[i];
+
+            gpu.Create(_gl, positions, inds);
+        }
+
         return gpu;
     }
+
 
     private static string ResolvePath(string path)
     {
@@ -64,35 +83,43 @@ public sealed class AssetManager
         if (File.Exists(p1)) return p1;
 
         // Fallback: relative to working directory
-        string p2 = Path.GetFullPath(path);
-        return p2;
+        return Path.GetFullPath(path);
     }
 
-    public SkinnedMeshGpu LoadGlbSkinnedMeshBindPose(string path,
-    out Matrix4x4[] inverseBindMatrices)
+    public SkinnedMeshGpu LoadGlbSkinnedMeshBindPose(string path, out Matrix4x4[] inverseBindMatrices)
     {
-        var model = ModelRoot.Load(path);
+        string fullPath = ResolvePath(path);
+        if (!File.Exists(fullPath))
+            throw new FileNotFoundException($"GLB not found: {fullPath}");
 
+        var model = ModelRoot.Load(fullPath);
+
+        if (model.LogicalSkins.Count == 0) throw new Exception("GLB has no skins.");
         var skin = model.LogicalSkins[0];
         inverseBindMatrices = skin.InverseBindMatrices.ToArray();
 
-        var mesh = model.LogicalMeshes[0];
-        var prim = mesh.Primitives[0];
+        var mesh = model.LogicalMeshes.Count > 0 ? model.LogicalMeshes[0] : throw new Exception("GLB has no meshes.");
+        var prim = mesh.Primitives.Count > 0 ? mesh.Primitives[0] : throw new Exception("Mesh has no primitives.");
 
-        var posAcc = prim.GetVertexAccessor("POSITION");
-        var jointsAcc = prim.GetVertexAccessor("JOINTS_0");
-        var weightsAcc = prim.GetVertexAccessor("WEIGHTS_0");
-        var idxAcc = prim.IndexAccessor;
+        var posAcc = prim.GetVertexAccessor("POSITION") ?? throw new Exception("Primitive has no POSITION.");
+        var jointsAcc = prim.GetVertexAccessor("JOINTS_0") ?? throw new Exception("Primitive has no JOINTS_0.");
+        var weightsAcc = prim.GetVertexAccessor("WEIGHTS_0") ?? throw new Exception("Primitive has no WEIGHTS_0.");
+        var idxAcc = prim.IndexAccessor ?? throw new Exception("Primitive has no indices.");
 
         int vCount = posAcc.Count;
         var vertices = new float[vCount * (3 + 4 + 4)];
 
+        // cache arrays (avoid calling AsVector*Array() repeatedly)
+        var posArr = posAcc.AsVector3Array();
+        var jointsArr = jointsAcc.AsVector4Array();
+        var weightsArr = weightsAcc.AsVector4Array();
+
         int k = 0;
         for (int i = 0; i < vCount; i++)
         {
-            var p = posAcc.AsVector3Array()[i];
-            var j = jointsAcc.AsVector4Array()[i];
-            var w = weightsAcc.AsVector4Array()[i];
+            var p = posArr[i];
+            var j = jointsArr[i];
+            var w = weightsArr[i];
 
             vertices[k++] = p.X;
             vertices[k++] = p.Y;
@@ -109,14 +136,15 @@ public sealed class AssetManager
             vertices[k++] = w.W;
         }
 
-        var indices = new List<uint>();
-        foreach (var i in idxAcc.AsIndicesArray())
-            indices.Add((uint)i);
+        var idx = idxAcc.AsIndicesArray();
+
+        // SkinnedMeshGpu currently uses uint indices; keep as uint (safe)
+        var indices = new uint[idx.Count];
+        for (int i = 0; i < idx.Count; i++) indices[i] = (uint)idx[i];
 
         var gpu = new SkinnedMeshGpu();
-        gpu.Create(_gl, vertices, indices.ToArray());
+        gpu.Create(_gl, vertices, indices);
 
         return gpu;
     }
-
 }

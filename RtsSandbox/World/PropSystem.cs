@@ -4,6 +4,7 @@ using System.Numerics;
 using Silk.NET.OpenGL;
 using RtsSandbox.Graphics;
 using Shader = RtsSandbox.Graphics.Shader;
+using RtsSandbox.Input;
 
 namespace RtsSandbox.World;
 
@@ -38,6 +39,9 @@ public sealed class PropSystem
     private GpuMesh? _propMesh;
     private int _currentCount = DefaultPropCount;
 
+    private int _debugEvery = 0;
+    private bool _printedOnce;
+
     public IReadOnlyList<Obstacle> Obstacles => _obstacles;
 
     public void Init(Terrain terrain, int? seed = 12345)
@@ -47,8 +51,10 @@ public sealed class PropSystem
 
     public void SetPropMesh(GpuMesh mesh)
     {
-        _propMesh = mesh;
+        _propMesh = mesh;                 // IMPORTANT: must set the same field Draw() checks
+        Console.WriteLine($"SetPropMesh OK: vao={mesh.Vao}, idx={mesh.IndexCount}, type={mesh.IndexType}");
     }
+
 
     public void Randomize(int count, Terrain terrain, int? seed = null)
     {
@@ -71,12 +77,13 @@ public sealed class PropSystem
             float s = 0.8f + 1.8f * (float)rng.NextDouble();
             float yaw = (float)rng.NextDouble() * MathF.PI * 2f;
 
-            var scale = Matrix4x4.CreateScale(s * 0.6f, s * 1.8f, s * 0.6f);
+            var scale = Matrix4x4.CreateScale(1.0f);
             var rot = Matrix4x4.CreateRotationY(yaw);
             var trans = Matrix4x4.CreateTranslation(new Vector3(x, y + (s * 0.9f), z));
 
             float baseOffset = _propMesh?.BaseOffsetY ?? 0f;
-            var model = scale * rot * Matrix4x4.CreateTranslation(new Vector3(x, y + (s * 0.9f) + baseOffset, z));
+            // Randomize ထဲမှာ ဒီလို ပြောင်းကြည့်ပါ
+            var model = rot * Matrix4x4.CreateTranslation(new Vector3(x, y + baseOffset, z));
             _models[i] = model;
             float radius = _propMesh?.BoundingRadius ?? (s * 0.75f);
             _obstacles.Add(new Obstacle(new Vector3(x, y, z), radius, model));
@@ -84,6 +91,8 @@ public sealed class PropSystem
 
         // force VAO/VBO reupload on next draw
         _ready = false;
+        Console.WriteLine($"Randomize: obstacles={_obstacles.Count}, propMeshNull={_propMesh == null}");
+
     }
 
     public void PlaceSingle(Vector2 xz, Terrain terrain)
@@ -105,6 +114,8 @@ public sealed class PropSystem
 
         _instanceCount = 1;
         _ready = false;
+        Console.WriteLine($"PlaceSingle: obstacles={_obstacles.Count}, propMeshNull={_propMesh == null}");
+
     }
 
     /// <summary>
@@ -188,6 +199,10 @@ public sealed class PropSystem
 
     public void Draw(GL gl, Shader instancedUnlit, Shader unlit, CameraController cam)
     {
+        if ((_debugEvery++ % 120) == 0)
+            Console.WriteLine($"DrawProps: propMeshNull={_propMesh == null}, instanceCount={_instanceCount}, obstacles={_obstacles.Count}");
+
+
         if (_propMesh != null)
         {
             unlit.Use();
@@ -199,11 +214,16 @@ public sealed class PropSystem
                 unlit.SetMat4("uMVP", mvp);
                 _propMesh.Draw(gl);
             }
-
+            if (!_printedOnce)
+            {
+                Console.WriteLine("Draw props mesh path");
+                _printedOnce = true;
+            }
             return;
         }
 
         EnsureInstancedMesh(gl);
+
 
         instancedUnlit.Use();
         instancedUnlit.SetMat4("uVP", cam.View * cam.Proj);

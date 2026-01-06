@@ -26,17 +26,13 @@ public sealed class Shader : IDisposable
     public void SetMat4(string name, Matrix4x4 m)
     {
         int loc = _gl.GetUniformLocation(Program, name);
-        Span<float> data = stackalloc float[16]
-        {
-            m.M11,m.M12,m.M13,m.M14,
-            m.M21,m.M22,m.M23,m.M24,
-            m.M31,m.M32,m.M33,m.M34,
-            m.M41,m.M42,m.M43,m.M44
-        };
+        if (loc == -1) return; // ဒါမှမဟုတ် error ထုတ်ပါ
+
+        // System.Numerics Matrix ကို 直接 (direct) ပို့လို့ရပါတယ်
         unsafe
         {
-            fixed (float* p = data)
-                _gl.UniformMatrix4(loc, 1, true, p);
+            // transpose: true ပေးလိုက်ခြင်းက logic ကို အမှန်ဆုံးဖြစ်စေပါတယ်
+            _gl.UniformMatrix4(loc, 1, false, (float*)&m);
         }
     }
 

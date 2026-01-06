@@ -15,9 +15,13 @@ public sealed class GpuMesh
     public float BaseOffsetY => -BoundsMin.Y;
     public float BoundingRadius { get; private set; }
 
+    // IMPORTANT: must match the EBO data type
+    public DrawElementsType IndexType { get; set; } = DrawElementsType.UnsignedInt;
+
     public unsafe void Create(GL gl, float[] positions, uint[] indices)
     {
         IndexCount = indices.Length;
+        IndexType = DrawElementsType.UnsignedInt;
 
         ComputeBounds(positions);
 
@@ -37,11 +41,56 @@ public sealed class GpuMesh
         gl.EnableVertexAttribArray(0);
         gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), (void*)0);
 
-        // EBO: indices
+        // EBO: uint indices
         gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, Ebo);
         fixed (uint* pi = indices)
         {
             gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)(indices.Length * sizeof(uint)), pi, BufferUsageARB.StaticDraw);
+        }
+
+        gl.BindVertexArray(0);
+    }
+
+    public unsafe void Create(GL gl, float[] positions, ushort[] indices)
+    {
+        Console.WriteLine($"GpuMesh Creating: Verts={positions.Length / 3}, Indices={indices.Length}");
+
+        // ပထမဆုံး vertex ၃ ခုကို ထုတ်ကြည့်ပါ (0,0,0 ဖြစ်နေလား စစ်ဖို့)
+        if (positions.Length >= 3)
+        {
+            Console.WriteLine($"First Vertex: {positions[0]}, {positions[1]}, {positions[2]}");
+        }
+
+        // Bounds စစ်ဆေးခြင်း
+        ComputeBounds(positions);
+        Console.WriteLine($"Mesh Bounds: Min={BoundsMin}, Max={BoundsMax}");
+
+        IndexCount = indices.Length;
+        IndexType = DrawElementsType.UnsignedShort;
+
+        ComputeBounds(positions);
+
+        Vao = gl.GenVertexArray();
+        Vbo = gl.GenBuffer();
+        Ebo = gl.GenBuffer();
+
+        gl.BindVertexArray(Vao);
+
+        // VBO: positions (vec3)
+        gl.BindBuffer(BufferTargetARB.ArrayBuffer, Vbo);
+        fixed (float* p = positions)
+        {
+            gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(positions.Length * sizeof(float)), p, BufferUsageARB.StaticDraw);
+        }
+
+        gl.EnableVertexAttribArray(0);
+        gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), (void*)0);
+
+        // EBO: ushort indices
+        gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, Ebo);
+        fixed (ushort* pi = indices)
+        {
+            gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)(indices.Length * sizeof(ushort)), pi, BufferUsageARB.StaticDraw);
         }
 
         gl.BindVertexArray(0);
@@ -85,8 +134,12 @@ public sealed class GpuMesh
     public void Draw(GL gl)
     {
         gl.BindVertexArray(Vao);
-        gl.DrawElements(PrimitiveType.Triangles, (uint)IndexCount, DrawElementsType.UnsignedInt, 0);
+        gl.DrawElements(PrimitiveType.Triangles, (uint)IndexCount, IndexType, 0);
         gl.BindVertexArray(0);
+
+        var err = gl.GetError();
+        if (err != GLEnum.NoError)
+            Console.WriteLine($"GL ERROR after DrawElements: {err} (vao={Vao}, ebo={Ebo}, count={IndexCount}, indexType={IndexType})");
     }
 
     public void Dispose(GL gl)

@@ -97,6 +97,9 @@ public sealed class Game
                 }
 
                 Console.WriteLine($"Loaded GLB: {path}");
+                Console.WriteLine($"GLB bounds min={mesh.BoundsMin} max={mesh.BoundsMax} baseOffsetY={mesh.BaseOffsetY} radius={mesh.BoundingRadius}");
+                Console.WriteLine($"GL handles vao={mesh.Vao} vbo={mesh.Vbo} ebo={mesh.Ebo} indexCount={mesh.IndexCount}");
+
             }
             catch (Exception ex)
             {
@@ -111,8 +114,10 @@ public sealed class Game
                 var mesh = _assets!.LoadGlbStaticMesh(path);
                 _loadedObstacleMesh?.Dispose(_gl);
                 _loadedObstacleMesh = mesh;
-                _props.SetPropMesh(mesh);
-                _props.Randomize(count, _terrain);
+
+                _props.SetPropMesh(mesh); // ၁။ Mesh ကို အရင်ထည့်
+                _props.Randomize(count, _terrain); // ၂။ ပြီးမှ Randomize ပြန်လုပ် (ဒါဆိုရင် null မဖြစ်တော့ဘူး)
+
                 Console.WriteLine($"Loaded obstacles: {count} from {path}");
             }
             catch (Exception ex)
@@ -150,22 +155,22 @@ public sealed class Game
         // Mouse down
         _mouse.MouseDown += (_, btn) =>
         {
-                if (btn == MouseButton.Left)
+            if (btn == MouseButton.Left)
+            {
+                _dragging = true;
+                _dragStart = _mouse.Position;
+                _dragEnd = _dragStart;
+            }
+            else if (btn == MouseButton.Right)
+            {
+                if (Picking.TryGetTerrainHit(_window, _mouse!, _camera, _terrain, out var hit))
                 {
-                    _dragging = true;
-                    _dragStart = _mouse.Position;
-                    _dragEnd = _dragStart;
-                }
-                else if (btn == MouseButton.Right)
-                {
-                    if (Picking.TryGetTerrainHit(_window, _mouse!, _camera, _terrain, out var hit))
+                    _tools?.SetPickedPosition(new Vector2(hit.X, hit.Z));
+                    if (_units.SelectedCount > 0)
                     {
-                        _tools?.SetPickedPosition(new Vector2(hit.X, hit.Z));
-                        if (_units.SelectedCount > 0)
-                        {
-                            _units.IssueMoveFormation(hit);
-                            _markers.Spawn(hit, _time);
-                        }
+                        _units.IssueMoveFormation(hit);
+                        _markers.Spawn(hit, _time);
+                    }
                 }
             }
         };

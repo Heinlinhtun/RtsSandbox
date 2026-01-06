@@ -263,6 +263,8 @@ public sealed class UnitSystem
                 else
                     unlit.SetVec4("uColor", new Vector4(0.2f, 0.75f, 0.35f, 1.0f));
 
+
+                gl.Enable(GLEnum.DepthTest);
                 _unitMesh.Draw(gl);
             }
 
@@ -280,7 +282,7 @@ public sealed class UnitSystem
             var worldPos = new Vector3(_pos[i].X, y + 0.5f, _pos[i].Z);
 
             var model = Matrix4x4.CreateTranslation(worldPos);
-            var mvp = model * cam.View * cam.Proj;
+            var mvp = cam.Proj * cam.View * model;
 
             unlit.Use();
             unlit.SetMat4("uMVP", mvp);

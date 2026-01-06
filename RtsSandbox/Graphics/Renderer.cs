@@ -133,7 +133,7 @@ public sealed class Renderer
                 Matrix4x4.CreateScale(scale, 1f, scale) *
                 Matrix4x4.CreateTranslation(new Vector3(pos.X, y, pos.Z));
 
-            var mvp = model * cam.View * cam.Proj;
+            var mvp = cam.Proj * cam.View * model;
             _unlit.SetMat4("uMVP", mvp);
 
             // alpha fade
