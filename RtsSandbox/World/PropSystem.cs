@@ -226,7 +226,9 @@ public sealed class PropSystem
 
 
         instancedUnlit.Use();
-        instancedUnlit.SetMat4("uVP", cam.Proj * cam.View);
+        // NOTE: Keep the same View * Proj order the instanced shader was authored with so
+        // the built-in fallback cubes appear immediately on load.
+        instancedUnlit.SetMat4("uVP", cam.View * cam.Proj);
         instancedUnlit.SetVec4("uColor", new Vector4(0.10f, 0.55f, 0.18f, 1.0f));
 
         gl.BindVertexArray(_vao);
