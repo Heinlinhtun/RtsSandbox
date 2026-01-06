@@ -210,7 +210,7 @@ public sealed class PropSystem
 
             foreach (var obs in _obstacles)
             {
-                var mvp = obs.Model * cam.View * cam.Proj;
+                var mvp = cam.Proj * cam.View * obs.Model;
                 unlit.SetMat4("uMVP", mvp);
                 _propMesh.Draw(gl);
             }
@@ -226,7 +226,7 @@ public sealed class PropSystem
 
 
         instancedUnlit.Use();
-        instancedUnlit.SetMat4("uVP", cam.View * cam.Proj);
+        instancedUnlit.SetMat4("uVP", cam.Proj * cam.View);
         instancedUnlit.SetVec4("uColor", new Vector4(0.10f, 0.55f, 0.18f, 1.0f));
 
         gl.BindVertexArray(_vao);
