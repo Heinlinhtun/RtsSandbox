@@ -36,7 +36,7 @@ public sealed class Shader : IDisposable
         unsafe
         {
             fixed (float* p = data)
-                _gl.UniformMatrix4(loc, 1, false, p);
+                _gl.UniformMatrix4(loc, 1, true, p);
         }
     }
 
