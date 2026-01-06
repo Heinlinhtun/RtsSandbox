@@ -2,6 +2,7 @@
 using RtsSandbox.Input;
 using RtsSandbox.UI;
 using RtsSandbox.World;
+using RtsSandbox.Assets;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using Silk.NET.OpenGL.Extensions.ImGui;
@@ -30,6 +31,7 @@ public sealed class Game
 
     private ImGuiController? _imgui;
     private ToolsMenu? _tools;
+    private RtsSandbox.Assets.AssetManager? _assets;
     private RtsSandbox.Graphics.GpuMesh? _loadedUnitMesh;
 
 
@@ -45,7 +47,7 @@ public sealed class Game
     public void Load()
     {
         _gl = GL.GetApi(_window);
-
+        _assets = new RtsSandbox.Assets.AssetManager(_gl);
         _input = _window.CreateInput();
         _kb = _input.Keyboards.Count > 0 ? _input.Keyboards[0] : null;
         _mouse = _input.Mice.Count > 0 ? _input.Mice[0] : null;
@@ -72,12 +74,32 @@ public sealed class Game
             Console.WriteLine($"LoadMap: {type} path={path} scale={heightScale}");
         };
 
-        _tools.OnLoadModel = (path, spawnAsUnit) =>
+        _tools!.OnLoadModel = (path, spawnAsUnit) =>
         {
-            // TODO: glTF loader ထည့်တဲ့နေ့부터 ဒီထဲကနေ
-            // if (spawnAsUnit) unitModels.Load(path); else propModels.Load(path);
-            Console.WriteLine($"LoadModel: path={path} asUnit={spawnAsUnit}");
+            try
+            {
+                var mesh = _assets!.LoadGlbStaticMesh(path);
+
+                if (spawnAsUnit)
+                {
+                    _loadedUnitMesh?.Dispose(_gl); // dispose previous
+                    _loadedUnitMesh = mesh;
+                    _units.SetUnitMesh(mesh);
+                }
+                else
+                {
+                    // later: props mesh set
+                    // _props.SetPropMesh(mesh);
+                }
+
+                Console.WriteLine($"Loaded GLB: {path}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"LoadModel failed: {ex.Message}");
+            }
         };
+
 
 
         // GL state

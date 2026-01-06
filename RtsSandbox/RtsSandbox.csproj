@@ -18,17 +18,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="Assets\**\*.*" CopyToOutputDirectory="PreserveNewest" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<Compile Remove="Assets\AssetManager.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<None Update="Assets\Models\unit.glb">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
+	  <None Include="Assets\AssetManager.cs" />
 	</ItemGroup>
 
 </Project>

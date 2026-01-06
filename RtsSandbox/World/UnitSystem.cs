@@ -22,11 +22,19 @@ public sealed class UnitSystem
 
     private readonly bool[] _selected = new bool[UnitCount];
     private int _selectedCount;
-
+    private SkinnedMeshGpu? _skinnedMesh;
+    private Matrix4x4[]? _invBind;
     // Cube mesh for now (36 vertices)
     private uint _vaoCube, _vboCube;
     private RtsSandbox.Graphics.GpuMesh? _unitMesh;
     public void SetUnitMesh(RtsSandbox.Graphics.GpuMesh mesh) => _unitMesh = mesh;
+
+
+    public void SetSkinnedMesh(SkinnedMeshGpu mesh, Matrix4x4[] invBind)
+    {
+        _skinnedMesh = mesh;
+        _invBind = invBind;
+    }
 
 
     public void Init(Terrain terrain)
@@ -217,6 +225,7 @@ public sealed class UnitSystem
             }
 
             return;
+
         }
 
         // fallback cubes (your existing cube draw)

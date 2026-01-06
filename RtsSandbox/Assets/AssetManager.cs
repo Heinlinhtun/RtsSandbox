@@ -2,6 +2,8 @@
 using System.IO;
 using SharpGLTF.Schema2;
 using Silk.NET.OpenGL;
+using System.Numerics;
+
 using RtsSandbox.Graphics;
 
 namespace RtsSandbox.Assets;
@@ -65,4 +67,56 @@ public sealed class AssetManager
         string p2 = Path.GetFullPath(path);
         return p2;
     }
+
+    public SkinnedMeshGpu LoadGlbSkinnedMeshBindPose(string path,
+    out Matrix4x4[] inverseBindMatrices)
+    {
+        var model = ModelRoot.Load(path);
+
+        var skin = model.LogicalSkins[0];
+        inverseBindMatrices = skin.InverseBindMatrices.ToArray();
+
+        var mesh = model.LogicalMeshes[0];
+        var prim = mesh.Primitives[0];
+
+        var posAcc = prim.GetVertexAccessor("POSITION");
+        var jointsAcc = prim.GetVertexAccessor("JOINTS_0");
+        var weightsAcc = prim.GetVertexAccessor("WEIGHTS_0");
+        var idxAcc = prim.IndexAccessor;
+
+        int vCount = posAcc.Count;
+        var vertices = new float[vCount * (3 + 4 + 4)];
+
+        int k = 0;
+        for (int i = 0; i < vCount; i++)
+        {
+            var p = posAcc.AsVector3Array()[i];
+            var j = jointsAcc.AsVector4Array()[i];
+            var w = weightsAcc.AsVector4Array()[i];
+
+            vertices[k++] = p.X;
+            vertices[k++] = p.Y;
+            vertices[k++] = p.Z;
+
+            vertices[k++] = j.X;
+            vertices[k++] = j.Y;
+            vertices[k++] = j.Z;
+            vertices[k++] = j.W;
+
+            vertices[k++] = w.X;
+            vertices[k++] = w.Y;
+            vertices[k++] = w.Z;
+            vertices[k++] = w.W;
+        }
+
+        var indices = new List<uint>();
+        foreach (var i in idxAcc.AsIndicesArray())
+            indices.Add((uint)i);
+
+        var gpu = new SkinnedMeshGpu();
+        gpu.Create(_gl, vertices, indices.ToArray());
+
+        return gpu;
+    }
+
 }
